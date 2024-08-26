@@ -1,0 +1,9 @@
+[package]
+name = "git-worktree-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+structopt = "0.3.26"
+skim = "0.10.4"
+git2 = "0.19.0"
