@@ -1,40 +1,92 @@
-use git2::Repository;
-use skim::prelude::*;
-use std::io::Cursor;
-use structopt::StructOpt;
+use std::{ffi::OsString, io, path::Path};
 
-#[derive(StructOpt)]
-struct Cli {
-    #[structopt(short, long)]
-    query: Option<String>,
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
+use skim::prelude::*;
+use utils::{
+    cli::{change_branch_of_bare_or_worktree_repo, change_branch_of_regular_repo},
+    git::{is_bare_repo, is_worktree},
+};
+
+mod utils;
+
+#[derive(Debug, Subcommand)]
+#[allow(clippy::large_enum_variant)]
+enum SubCommands {
+    #[command(about = "Change branch or worktree of a git repository")]
+    ChangeBranch {
+        #[clap(short='p', long, help = "Path to the git repository", default_value = ".")]
+        repo_path: OsString,
+        #[clap(short, long, help = "Branch name to change to")]
+        branch: Option<OsString>,
+        #[clap(short, long, help = "Worktree name to change to")]
+        worktree: Option<OsString>,
+        #[clap(short, long, help = "Query string to filter results")]
+        query: Option<OsString>,
+    },
+    #[command(arg_required_else_help = true, about = "Generate shell completions")]
+    Completions {
+        #[arg(value_enum, help="Shell to generate completions for")]
+        shell: Shell,
+    },
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "git-worktree-cli", version, about, author)]
+#[command(about = "CLI for working with git worktree", long_about = None)]
+#[command(propagate_version = true)]
+pub struct CLI {
+    #[clap(subcommand)]
+    subcommands: SubCommands,
 }
 
 fn main() {
-    let args = Cli::from_args();
+    let opt = CLI::parse();
 
-    let options = SkimOptionsBuilder::default()
-        .query(args.query.as_deref())
-        .build()
-        .unwrap();
+    match opt.subcommands {
+        SubCommands::Completions { shell } => {
+            generate(
+                shell,
+                &mut CLI::command(),
+                "git-worktree-cli",
+                &mut io::stdout(),
+            );
+        }
+        SubCommands::ChangeBranch {
+            repo_path,
+            branch,
+            worktree,
+            query,
+        } => {
+            let query_string = query.map(|os_str| os_str.to_string_lossy().to_string());
 
-    let repo = Repository::open(".").unwrap();
+            let options = SkimOptionsBuilder::default()
+                .query(query_string.as_deref())
+                .multi(false)
+                .algorithm(FuzzyAlgorithm::SkimV2)
+                .build()
+                .unwrap();
 
-    let branches = repo.branches(None).unwrap();
+            let item_reader = SkimItemReader::default();
 
-    let input = branches
-        .map(|branch| branch.unwrap().0)
-        .filter_map(|branch| branch.name().ok().map(|name| name.unwrap().to_string()))
-        .collect::<Vec<String>>();
+            let repo_path = Path::new(&repo_path);
 
-    // let input = "Option 1\nOption 2\nOption 3\nOption 4\nOption 5";
-    let item_reader = SkimItemReader::default();
-    let items = item_reader.of_bufread(Cursor::new(input.join("\n").into_bytes()));
+            let branch = branch.map(|os_str| os_str.to_string_lossy().into_owned());
+            let worktree = worktree.map(|os_str| os_str.to_string_lossy().into_owned());
 
-    let selected_items = Skim::run_with(&options, Some(items))
-        .map(|out| out.selected_items)
-        .unwrap_or_else(|| Vec::new());
+            let command = if is_bare_repo(&repo_path) || is_worktree(&repo_path) {
+                change_branch_of_bare_or_worktree_repo(
+                    &repo_path,
+                    &options,
+                    &item_reader,
+                    &branch,
+                    &worktree,
+                )
+            } else {
+                change_branch_of_regular_repo(&repo_path, &options, &item_reader, &branch)
+            };
 
-    for item in selected_items {
-        println!("You selected: {}", item.output());
+            println!("{}", command.expect("Failed to change branch"));
+        }
     }
 }
