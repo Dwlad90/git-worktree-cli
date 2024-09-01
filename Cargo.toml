@@ -12,3 +12,9 @@ colored = "2.1.0"
 indexmap = "2.4.0"
 clap = {version = "4.5.16", features = ["derive"]}
 clap_complete = "4.5.24"
+octocrab = "0.39.0"
+tokio = { version = "1.40.0", features = ["full"] }
+anyhow = "1.0.86"
+log = "0.4.22"
+pretty_env_logger = "0.5.0"
+regex = "1.10.6"

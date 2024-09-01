@@ -14,7 +14,7 @@ use super::git::{
     branch::{add_branch, get_branches, BranchInfo},
     fetch::fetch_all,
     is_branch_clear,
-    worktree::add_worktree,
+    worktree::{add_worktree, AddKind},
 };
 
 pub(crate) fn change_branch_of_bare_or_worktree_repo(
@@ -138,7 +138,10 @@ pub(crate) fn change_branch_of_regular_repo(
     Ok(format!("git checkout {}", selected_branch_name))
 }
 
-pub(crate) fn add_worktree_to_repo<S>(repo: &Repository, worktree_name: S) -> Result<String, Error>
+pub(crate) fn add_worktree_to_repo<S>(
+    repo: &Repository,
+    worktree_name: S,
+) -> Result<(String, AddKind), Error>
 where
     S: AsRef<OsStr>,
 {
@@ -146,19 +149,23 @@ where
 
     let remote_branch = get_branch(repo, &worktree_name, BranchType::Remote);
 
-    let worktree = add_worktree(repo, &worktree_name, &remote_branch).unwrap();
+    let (worktree, add_kind) = add_worktree(repo, &worktree_name, &remote_branch).unwrap();
 
     let worktree_path = worktree.path().to_string_lossy().to_string();
-    Ok::<String, Error>(format!("cd {}", worktree_path))
+
+    Ok((format!("cd {}", worktree_path), add_kind))
 }
 
-pub(crate) fn add_branch_to_repo<S>(repo: &Repository, branch_name: S) -> Result<String, Error>
+pub(crate) fn add_branch_to_repo<S>(
+    repo: &Repository,
+    branch_name: S,
+) -> Result<(String, AddKind), Error>
 where
     S: AsRef<OsStr>,
 {
     fetch_all(repo);
 
-    let branch = add_branch(repo, &branch_name)?;
+    let (branch, add_kind) = add_branch(repo, &branch_name)?;
 
-    Ok::<String, Error>(format!("git checkout {}", branch.name))
+    Ok((format!("git checkout {}", branch.name), add_kind))
 }

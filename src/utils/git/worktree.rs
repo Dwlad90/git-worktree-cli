@@ -3,6 +3,8 @@ use std::ffi::OsStr;
 use colored::Colorize;
 use git2::{Error, Repository, Worktree, WorktreeAddOptions};
 
+use crate::utils::git::common::get_root_repo_path;
+
 use super::{
     branch::{get_local_branch_reference, get_worktree_branch, BranchInfo},
     commit::get_worktree_commit_time,
@@ -97,27 +99,30 @@ where
     Err(Error::from_str("Worktree not found"))
 }
 
+#[derive(Debug, PartialEq)]
+pub(crate) enum AddKind {
+    Existed,
+    Added,
+}
+
 pub(crate) fn add_worktree<S>(
     repo: &Repository,
     worktree_name: &S,
     remote_branch: &Option<BranchInfo>,
-) -> Result<Worktree, Error>
+) -> Result<(Worktree, AddKind), Error>
 where
     S: AsRef<OsStr>,
 {
     // Check if the worktree already exists
     if worktree_exists_by_name(repo, worktree_name)? {
-        eprintln!(
-            "{}",
-            "WARNING: Worktree with the given name already exists".yellow()
-        );
+        let warning = "Worktree with the given name already exists";
+        warn!("{}", warning);
+        eprintln!("{}{}", "WARNING: ".yellow(), warning);
 
-        return get_worktree_by_name(repo, worktree_name);
+        return Ok((get_worktree_by_name(repo, worktree_name)?, AddKind::Existed));
     }
 
-    let worktree_path = repo
-        .path()
-        .parent()
+    let worktree_path = get_root_repo_path(repo)
         .expect("Failed to get repo root path")
         .join(worktree_name.as_ref());
 
@@ -134,13 +139,12 @@ where
 
     add_options.reference(head.as_ref());
 
-    repo.worktree(
-        worktree_name
-            .as_ref()
-            .to_string_lossy()
-            .to_string()
-            .as_str(),
-        worktree_path.as_ref(),
-        Some(&add_options),
-    )
+    Ok((
+        repo.worktree(
+            worktree_name.as_ref().to_string_lossy().as_ref(),
+            worktree_path.as_ref(),
+            Some(&add_options),
+        )?,
+        AddKind::Added,
+    ))
 }

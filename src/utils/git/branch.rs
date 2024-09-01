@@ -3,7 +3,10 @@ use std::ffi::OsStr;
 use git2::{BranchType, Error, Oid, Repository};
 use indexmap::IndexMap;
 
-use super::{commit::get_commit_time, worktree::get_worktree_names};
+use super::{
+    commit::get_commit_time,
+    worktree::{get_worktree_names, AddKind},
+};
 
 pub(crate) fn get_branches(repo: &Repository, branch_type: BranchType) -> Vec<BranchInfo> {
     let branches = repo
@@ -166,20 +169,23 @@ pub(crate) fn get_local_branch_reference<'a>(
     }
 }
 
-pub(crate) fn add_branch<S>(repo: &Repository, branch_name: &S) -> Result<BranchInfo, Error>
+pub(crate) fn add_branch<S>(
+    repo: &Repository,
+    branch_name: &S,
+) -> Result<(BranchInfo, AddKind), Error>
 where
     S: AsRef<OsStr>,
 {
     if branch_exists_by_name(repo, branch_name, BranchType::Local).unwrap_or(false) {
         let branch = get_branch(repo, &branch_name, BranchType::Local).unwrap();
 
-        return Ok(branch);
+        return Ok((branch, AddKind::Existed));
     }
 
     let remote_branch = get_branch(repo, &branch_name, BranchType::Remote);
 
     if let Some(remote_branch) = remote_branch {
-        return Ok(remote_branch);
+        return Ok((remote_branch, AddKind::Added));
     }
 
     let branch_name = if let Some(branch) = branch_name.as_ref().to_str() {
@@ -198,8 +204,11 @@ where
         .branch(&branch_name, &head, false)
         .expect("Failed to create branch");
 
-    Ok(BranchInfo {
-        name: branch.name().unwrap().unwrap().to_string(),
-        head: branch.get().target().unwrap().to_string(),
-    })
+    Ok((
+        BranchInfo {
+            name: branch.name().unwrap().unwrap().to_string(),
+            head: branch.get().target().unwrap().to_string(),
+        },
+        AddKind::Added,
+    ))
 }

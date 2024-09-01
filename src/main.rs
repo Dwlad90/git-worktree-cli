@@ -1,15 +1,38 @@
 use std::{ffi::OsString, fs};
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
 use cli::{
-    add::add_sub_command, change_branch::change_branch_sub_command,
+    add::{add_from_pr_sub_command, add_sub_command},
+    change_branch::change_branch_sub_command,
     completions::completions_sub_command,
 };
+use octocrab::params::State;
 use utils::git::open_repo;
+
+extern crate pretty_env_logger;
+#[macro_use]
+extern crate log;
 
 mod cli;
 mod utils;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum RepoSource {
+    // Source from a git repository
+    Git,
+    // Source from a Github repository
+    PR,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub(crate) enum PRStatus {
+    // Source from a git repository
+    Draft,
+    // Source from a Github repository
+    Open,
+    All,
+}
 
 #[derive(Debug, Subcommand)]
 #[allow(clippy::large_enum_variant)]
@@ -35,6 +58,28 @@ enum SubCommands {
         )]
         repo_path: OsString,
     },
+
+    #[command(about = "Add a new worktree/branch to a git repository from a PR")]
+    AddByPR {
+        #[clap(
+            short = 'p',
+            long,
+            help = "Path to the git repository",
+            default_value = ".",
+            value_hint = clap::ValueHint::DirPath
+        )]
+        repo_path: OsString,
+        #[clap(
+            short = 's',
+            long,
+            value_enum,
+            help = "Status of PR to add",
+            value_name = "PR_STATUS",
+            default_value = "open"
+        )]
+        pr_status: PRStatus,
+    },
+
     #[command(about = "Change branch or worktree of a git repository")]
     ChangeBranch {
         #[clap(
@@ -72,7 +117,10 @@ pub struct CLI {
     subcommands: SubCommands,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    pretty_env_logger::init();
+
     let opt = CLI::parse();
 
     match opt.subcommands {
@@ -80,7 +128,30 @@ fn main() {
             let repo_path = fs::canonicalize(repo_path).expect("Failed to get worktree path");
             let repo = open_repo(&repo_path);
 
-            add_sub_command(repo, name);
+            match add_sub_command(repo, name) {
+                Ok(_) => {
+                    println!("Worktree/branch was added successfully");
+                }
+                Err(e) => {
+                    eprintln!("Failed to add worktree/branch: {:?}", e);
+                }
+            }
+        }
+        SubCommands::AddByPR {
+            repo_path,
+            pr_status,
+        } => {
+            let repo_path = fs::canonicalize(repo_path).expect("Failed to get worktree path");
+            let repo = open_repo(&repo_path);
+
+            match add_from_pr_sub_command(repo, State::Open, pr_status).await {
+                Ok(_) => {
+                    println!("All PRs were added successfully");
+                }
+                Err(e) => {
+                    eprintln!("Failed to get PR: {:?}", e);
+                }
+            }
         }
         SubCommands::Completions { shell } => {
             completions_sub_command(shell);
