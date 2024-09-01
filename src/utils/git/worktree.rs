@@ -1,6 +1,5 @@
 use std::ffi::OsStr;
 
-use colored::Colorize;
 use git2::{Error, Repository, Worktree, WorktreeAddOptions};
 
 use crate::utils::git::common::get_root_repo_path;
@@ -115,9 +114,10 @@ where
 {
     // Check if the worktree already exists
     if worktree_exists_by_name(repo, worktree_name)? {
-        let warning = "Worktree with the given name already exists";
-        warn!("{}", warning);
-        eprintln!("{}{}", "WARNING: ".yellow(), warning);
+        warn!(
+            "Worktree with name `{}` already exists",
+            worktree_name.as_ref().to_string_lossy()
+        );
 
         return Ok((get_worktree_by_name(repo, worktree_name)?, AddKind::Existed));
     }

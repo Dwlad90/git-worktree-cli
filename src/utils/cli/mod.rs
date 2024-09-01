@@ -1,7 +1,5 @@
 use std::{ffi::OsStr, io::Cursor};
 
-use colored::*;
-
 use git2::{BranchType, Error, Repository};
 use skim::{prelude::SkimItemReader, Skim, SkimOptions};
 
@@ -98,7 +96,7 @@ pub(crate) fn change_branch_of_regular_repo(
     branch_name_arg: &Option<String>,
 ) -> Result<String, Error> {
     if !is_branch_clear(repo) {
-        eprintln!("{}", "WARNING: Branch has uncommitted changes".yellow());
+        warn!("Branch has uncommitted changes");
         std::process::exit(exitcode::SOFTWARE);
     }
 

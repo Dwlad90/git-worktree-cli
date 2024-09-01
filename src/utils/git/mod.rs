@@ -12,7 +12,12 @@ pub(crate) fn open_repo<P>(repo_path: &P) -> Repository
 where
     P: AsRef<Path>,
 {
-    Repository::open(repo_path).expect("Failed to open repository")
+    let Ok(repo) = Repository::open(repo_path) else {
+        error!("Failed to open repository at {:?}", repo_path.as_ref());
+        std::process::exit(exitcode::SOFTWARE);
+    };
+
+    repo
 }
 
 pub(crate) fn is_branch_clear(repo: &Repository) -> bool {
@@ -30,7 +35,7 @@ pub(crate) fn is_branch_clear(repo: &Repository) -> bool {
             for entry in statuses.iter() {
                 let status = entry.status();
                 let path = entry.path().unwrap_or("unknown");
-                println!("Path: {}, Status: {:?}", path, status);
+                debug!("Path: {}, Status: {:?}", path, status);
             }
         }
 

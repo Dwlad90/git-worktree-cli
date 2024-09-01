@@ -18,7 +18,7 @@ pub(crate) fn get_worktree_commit_time(repo: &Repository, worktree_name: &str) -
             Some(commit.time().seconds())
         }
         Err(e) => {
-            eprintln!("Failed to find branch {}: {}", branch_name, e); // Log the error
+            error!("Failed to find branch {}: {}", branch_name, e);
             None
         }
     }

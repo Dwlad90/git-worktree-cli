@@ -130,10 +130,10 @@ async fn main() {
 
             match add_sub_command(repo, name) {
                 Ok(_) => {
-                    println!("Worktree/branch was added successfully");
+                    info!("Worktree/branch was added successfully");
                 }
                 Err(e) => {
-                    eprintln!("Failed to add worktree/branch: {:?}", e);
+                    error!("Failed to add worktree/branch: {:?}", e);
                 }
             }
         }
@@ -146,10 +146,10 @@ async fn main() {
 
             match add_from_pr_sub_command(repo, State::Open, pr_status).await {
                 Ok(_) => {
-                    println!("All PRs were added successfully");
+                    info!("All PRs were added successfully");
                 }
                 Err(e) => {
-                    eprintln!("Failed to get PR: {:?}", e);
+                    error!("Failed to get PR: {:?}", e);
                 }
             }
         }
