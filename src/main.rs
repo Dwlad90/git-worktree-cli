@@ -26,12 +26,19 @@ enum RepoSource {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub(crate) enum PRStatus {
+pub(crate) enum PRKind {
     // Source from a git repository
     Draft,
     // Source from a Github repository
     Open,
     All,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub(crate) enum PrSelection {
+    All,
+    Multiple,
+    Single,
 }
 
 #[derive(Debug, Subcommand)]
@@ -70,14 +77,23 @@ enum SubCommands {
         )]
         repo_path: OsString,
         #[clap(
-            short = 's',
+            short = 'k',
             long,
             value_enum,
             help = "Status of PR to add",
-            value_name = "PR_STATUS",
+            value_name = "PR_KIND",
             default_value = "open"
         )]
-        pr_status: PRStatus,
+        pr_kind: PRKind,
+        #[clap(
+            short = 's',
+            long,
+            value_enum,
+            help = "Selection type of PR to add",
+            value_name = "PR_SELECTION",
+            default_value = "multiple"
+        )]
+        pr_selection: PrSelection,
     },
 
     #[command(about = "Change branch or worktree of a git repository")]
@@ -139,12 +155,13 @@ async fn main() {
         }
         SubCommands::AddByPR {
             repo_path,
-            pr_status,
+            pr_kind,
+            pr_selection,
         } => {
             let repo_path = fs::canonicalize(repo_path).expect("Failed to get worktree path");
             let repo = open_repo(&repo_path);
 
-            match add_from_pr_sub_command(repo, State::Open, pr_status).await {
+            match add_from_pr_sub_command(repo, State::Open, pr_kind, pr_selection).await {
                 Ok(_) => {
                     info!("All PRs were added successfully");
                 }
@@ -166,7 +183,9 @@ async fn main() {
 
             let repo = open_repo(&repo_path);
 
-            change_branch_sub_command(repo, branch, worktree, query);
+            if let Err(e) = change_branch_sub_command(repo, branch, worktree, query).await {
+                error!("{}", e);
+            }
         }
     }
 }
